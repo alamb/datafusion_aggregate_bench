@@ -18,27 +18,33 @@ use crate::{
 mod query;
 mod repeat;
 
+const BATCH_SIZE: usize  = 10000;
+const NUM_DISTINCT_KEYS: i64 = 100;
+const KEY_NULL_DENSITY: f64 = 0.10; // 10% nulls
+const VALUE_NULL_DENSITY: f64 = 0.01; // 1% nulls
+
+
 #[tokio::main]
 async fn main() {
     println!("Starting tests");
 
-    // run_benchmark(
-    //     "100 Groups; 1B rows, int64_keys(10% nulls), f64 values(1% nulls)",
-    //     100000,
-    //     "select int64_key, count(*), avg(f64) from t group by int64_key",
-    // )
-    // .await;
-
-    // run_benchmark(
-    //     "100 Groups; 1B rows, utf8_keys(10% nulls), f64 values(1% nulls)",
-    //     100000,
-    //     "select utf8_key, count(*), avg(f64) from t group by utf8_key",
-    // )
-    // .await;
+    run_benchmark(
+        "100 Groups; 100M rows, int64_keys(10% nulls), f64 values(1% nulls)",
+        10000,
+        "select int64_key, count(*), avg(f64) from t group by int64_key",
+    )
+    .await;
 
     run_benchmark(
-        "100 Groups; 1B rows, dictionary(utf8, int32) keys(10% nulls), f64 values(1% nulls)",
-        100000,
+        "100 Groups; 100M rows, utf8_keys(10% nulls), f64 values(1% nulls)",
+        10000,
+        "select utf8_key, count(*), avg(f64) from t group by utf8_key",
+    )
+    .await;
+
+    run_benchmark(
+        "100 Groups; 100M rows, dictionary(utf8, int32) keys(10% nulls), f64 values(1% nulls)",
+        10000,
         "select dict_key, count(*), avg(f64) from t group by dict_key",
     )
     .await;
@@ -56,14 +62,10 @@ fn seedable_rng() -> StdRng {
 /// "f64": Float values
 fn make_batch() -> RecordBatch {
     let mut rng = seedable_rng();
-    let batch_size = 10000;
-    let num_distinct_keys = 100;
-    let key_null_density = 0.10; // 10% nulls
-    let value_null_density = 0.01; // 1% nulls
 
-    let key_values = (0..num_distinct_keys)
+    let key_values = (0..NUM_DISTINCT_KEYS)
         .map(|i| {
-            if rng.gen::<f64>() < key_null_density {
+            if rng.gen::<f64>() < KEY_NULL_DENSITY {
                 None
             } else {
                 Some(i)
@@ -71,7 +73,7 @@ fn make_batch() -> RecordBatch {
         })
         .collect::<Vec<Option<i64>>>();
 
-    let int64_array: Int64Array = (0..batch_size)
+    let int64_array: Int64Array = (0..BATCH_SIZE)
         .map(|_| {
             // use random numbers to avoid spurious compiler optimizations wrt to branching
             let v: Option<i64> = *key_values.choose(&mut rng).unwrap();
@@ -84,7 +86,7 @@ fn make_batch() -> RecordBatch {
         .map(|v| v.map(|v| format!("host-foo-bar-baz-{:?}", v)))
         .collect();
 
-    let utf8_array: StringArray = (0..batch_size)
+    let utf8_array: StringArray = (0..BATCH_SIZE)
         .map(|_| {
             // use random numbers to avoid spurious compiler optimizations wrt to branching
             let v: Option<&String> = key_strings.choose(&mut rng).unwrap().as_ref();
@@ -92,7 +94,7 @@ fn make_batch() -> RecordBatch {
         })
         .collect();
 
-    let dict_array: DictionaryArray<Int32Type> = (0..batch_size)
+    let dict_array: DictionaryArray<Int32Type> = (0..BATCH_SIZE)
         .map(|_| {
             // use random numbers to avoid spurious compiler optimizations wrt to branching
             let v: Option<&String> = key_strings.choose(&mut rng).unwrap().as_ref();
@@ -100,7 +102,7 @@ fn make_batch() -> RecordBatch {
         })
         .collect();
 
-    let f64_array: Float64Array = create_data(batch_size, value_null_density)
+    let f64_array: Float64Array = create_data(BATCH_SIZE, VALUE_NULL_DENSITY)
         .into_iter()
         .collect();
 
