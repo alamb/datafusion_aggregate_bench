@@ -1,26 +1,23 @@
 //! In-memory data source for presenting the same record batch N times
 
 use async_trait::async_trait;
-use tokio_stream::Stream;
 use tokio_stream::wrappers::ReceiverStream;
+use tokio_stream::Stream;
 
 use std::any::Any;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use datafusion::arrow::datatypes::{Field, Schema, SchemaRef};
+use datafusion::arrow::error::Result as ArrowResult;
 use datafusion::arrow::record_batch::RecordBatch;
-use datafusion::arrow::error::{Result as ArrowResult};
 
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result};
 use datafusion::logical_plan::Expr;
-use datafusion::physical_plan::{DisplayFormatType, RecordBatchStream, SendableRecordBatchStream};
 use datafusion::physical_plan::ExecutionPlan;
-use datafusion::{
-    datasource::datasource::Statistics,
-    physical_plan::Partitioning,
-};
+use datafusion::physical_plan::{DisplayFormatType, RecordBatchStream, SendableRecordBatchStream};
+use datafusion::{datasource::datasource::Statistics, physical_plan::Partitioning};
 use futures_util::stream::StreamExt;
 
 /// In-memory table that send a record batch N times
@@ -31,7 +28,7 @@ pub struct RepeatedTable {
 }
 
 impl RepeatedTable {
-    pub fn new(batch: RecordBatch,  num: usize) -> Self {
+    pub fn new(batch: RecordBatch, num: usize) -> Self {
         Self { batch, num }
     }
 }
@@ -82,10 +79,13 @@ impl TableProvider for RepeatedTable {
 
         let batch = RecordBatch::try_new(
             projected_schema,
-            columns.iter().map(|i| self.batch.column(*i).clone()).collect(),
+            columns
+                .iter()
+                .map(|i| self.batch.column(*i).clone())
+                .collect(),
         )?;
 
-        Ok(Arc::new(RepeatExec{
+        Ok(Arc::new(RepeatExec {
             batch,
             num: self.num,
         }))
@@ -96,8 +96,6 @@ impl TableProvider for RepeatedTable {
     }
 }
 
-
-
 /// Execution plan for reading in-memory batches of data
 #[derive(Debug)]
 pub struct RepeatExec {
@@ -106,7 +104,6 @@ pub struct RepeatExec {
     /// number of times to repeat the batch
     num: usize,
 }
-
 
 #[async_trait]
 impl ExecutionPlan for RepeatExec {
@@ -130,10 +127,7 @@ impl ExecutionPlan for RepeatExec {
         Partitioning::UnknownPartitioning(1)
     }
 
-    fn with_new_children(
-        &self,
-        _: Vec<Arc<dyn ExecutionPlan>>,
-    ) -> Result<Arc<dyn ExecutionPlan>> {
+    fn with_new_children(&self, _: Vec<Arc<dyn ExecutionPlan>>) -> Result<Arc<dyn ExecutionPlan>> {
         Err(DataFusionError::Internal(format!(
             "Children cannot be replaced in {:?}",
             self
@@ -150,7 +144,10 @@ impl ExecutionPlan for RepeatExec {
         tokio::task::spawn(async move {
             for i in 0..total_batches {
                 if let Err(_) = tx.send(Ok(batch.clone())).await {
-                    println!("Repeat generator got hangup after {}/{} batches", i, total_batches);
+                    println!(
+                        "Repeat generator got hangup after {}/{} batches",
+                        i, total_batches
+                    );
                 }
             }
         });
@@ -161,11 +158,7 @@ impl ExecutionPlan for RepeatExec {
         }))
     }
 
-    fn fmt_as(
-        &self,
-        t: DisplayFormatType,
-        f: &mut std::fmt::Formatter,
-    ) -> std::fmt::Result {
+    fn fmt_as(&self, t: DisplayFormatType, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match t {
             DisplayFormatType::Default => {
                 write!(f, "RepeatExec repeat={}", self.num)
@@ -173,8 +166,6 @@ impl ExecutionPlan for RepeatExec {
         }
     }
 }
-
-
 
 struct RepeatedStream {
     schema: SchemaRef,

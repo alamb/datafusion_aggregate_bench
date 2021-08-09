@@ -1,9 +1,19 @@
-use std::{sync::{Arc}, time::Instant};
+use std::{sync::Arc, time::Instant};
 
-use datafusion::arrow::{array::{ArrayRef, DictionaryArray, Float64Array, Int64Array, StringArray}, datatypes::Int32Type, record_batch::RecordBatch};
-use rand::{Rng, SeedableRng, prelude::{SliceRandom, StdRng}};
+use datafusion::arrow::{
+    array::{ArrayRef, DictionaryArray, Float64Array, Int64Array, StringArray},
+    datatypes::Int32Type,
+    record_batch::RecordBatch,
+};
+use rand::{
+    prelude::{SliceRandom, StdRng},
+    Rng, SeedableRng,
+};
 
-use crate::{query::{run_query, run_query_silently}, repeat::RepeatedTable};
+use crate::{
+    query::{run_query, run_query_silently},
+    repeat::RepeatedTable,
+};
 
 mod query;
 mod repeat;
@@ -11,16 +21,26 @@ mod repeat;
 #[tokio::main]
 async fn main() {
     println!("Starting tests");
-    run_benchmark("100 Groups; 1B rows, int64_keys(10% nulls), f64 values(1% nulls)",
-                  100000,
-                  "select int64_key, count(*), avg(f64) from t group by int64_key").await;
+    run_benchmark(
+        "100 Groups; 1B rows, int64_keys(10% nulls), f64 values(1% nulls)",
+        100000,
+        "select int64_key, count(*), avg(f64) from t group by int64_key",
+    )
+    .await;
 
-    run_benchmark("100 Groups; 1B rows, utf8_keys(10% nulls), f64 values(1% nulls)",
-                  100000, "select utf8_key, count(*), avg(f64) from t group by utf8_key").await;
-    run_benchmark("100 Groups; 1B rows, dictionary(utf8, int32) keys(10% nulls), f64 values(1% nulls)",
-                  100000, "select dict_key, count(*), avg(f64) from t group by dict_key").await;
+    run_benchmark(
+        "100 Groups; 1B rows, utf8_keys(10% nulls), f64 values(1% nulls)",
+        100000,
+        "select utf8_key, count(*), avg(f64) from t group by utf8_key",
+    )
+    .await;
+    run_benchmark(
+        "100 Groups; 1B rows, dictionary(utf8, int32) keys(10% nulls), f64 values(1% nulls)",
+        100000,
+        "select dict_key, count(*), avg(f64) from t group by dict_key",
+    )
+    .await;
 }
-
 
 /// create a seedable [`StdRng`](rand::StdRng)
 fn seedable_rng() -> StdRng {
@@ -57,12 +77,9 @@ fn make_batch() -> RecordBatch {
         })
         .collect();
 
-    let key_strings: Vec<Option<String>> = key_values.iter()
-        .map(|v| {
-            v.map(|v| {
-                format!("host-foo-bar-baz-{:?}", v)
-            })
-        })
+    let key_strings: Vec<Option<String>> = key_values
+        .iter()
+        .map(|v| v.map(|v| format!("host-foo-bar-baz-{:?}", v)))
         .collect();
 
     let utf8_array: StringArray = (0..batch_size)
@@ -89,8 +106,9 @@ fn make_batch() -> RecordBatch {
         ("int64_key", Arc::new(int64_array) as ArrayRef),
         ("utf8_key", Arc::new(utf8_array) as ArrayRef),
         ("dict_key", Arc::new(dict_array) as ArrayRef),
-        ("f64", Arc::new(f64_array) as ArrayRef)
-    ]).unwrap()
+        ("f64", Arc::new(f64_array) as ArrayRef),
+    ])
+    .unwrap()
 }
 
 fn create_data(size: usize, null_density: f64) -> Vec<Option<f64>> {
@@ -108,8 +126,6 @@ fn create_data(size: usize, null_density: f64) -> Vec<Option<f64>> {
         .collect()
 }
 
-
-
 /// Run the specified query and num batches
 async fn run_benchmark(name: &str, num_batches: usize, query: &str) {
     println!("-------------------");
@@ -118,15 +134,19 @@ async fn run_benchmark(name: &str, num_batches: usize, query: &str) {
     let batch = make_batch();
     let total_rows = num_batches * batch.num_rows();
     println!("Benchmarking {}", query);
-    println!("  {} batches of {} rows = {} total rows",
-             num_batches, batch.num_rows(), total_rows);
+    println!(
+        "  {} batches of {} rows = {} total rows",
+        num_batches,
+        batch.num_rows(),
+        total_rows
+    );
 
     let table = RepeatedTable::new(batch, num_batches);
     let table = Arc::new(table);
-        run_query(table.clone(), &format!("explain {}", query)).await;
+    run_query(table.clone(), &format!("explain {}", query)).await;
 
     let num_iterations = 5;
-    let mut total_duration = std::time::Duration::new(0,0);
+    let mut total_duration = std::time::Duration::new(0, 0);
     for _ in 0..num_iterations {
         let start = Instant::now();
         run_query_silently(table.clone(), query).await;
@@ -135,10 +155,13 @@ async fn run_benchmark(name: &str, num_batches: usize, query: &str) {
         total_duration += duration;
     }
     let nanos_per_second: f64 = 1_000_000_000.0;
-    let rows_per_second: f64 = ((total_rows as f64) / (total_duration.as_nanos() as f64)) *
-        nanos_per_second *
-        (num_iterations as f64);
+    let rows_per_second: f64 = ((total_rows as f64) / (total_duration.as_nanos() as f64))
+        * nanos_per_second
+        * (num_iterations as f64);
 
     println!("---------------");
-    println!("Completed {} iterations query in {:?} {} rows/sec", num_iterations, total_duration, rows_per_second);
+    println!(
+        "Completed {} iterations query in {:?} {} rows/sec",
+        num_iterations, total_duration, rows_per_second
+    );
 }
