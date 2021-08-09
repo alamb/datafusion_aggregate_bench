@@ -21,19 +21,21 @@ mod repeat;
 #[tokio::main]
 async fn main() {
     println!("Starting tests");
-    run_benchmark(
-        "100 Groups; 1B rows, int64_keys(10% nulls), f64 values(1% nulls)",
-        100000,
-        "select int64_key, count(*), avg(f64) from t group by int64_key",
-    )
-    .await;
 
-    run_benchmark(
-        "100 Groups; 1B rows, utf8_keys(10% nulls), f64 values(1% nulls)",
-        100000,
-        "select utf8_key, count(*), avg(f64) from t group by utf8_key",
-    )
-    .await;
+    // run_benchmark(
+    //     "100 Groups; 1B rows, int64_keys(10% nulls), f64 values(1% nulls)",
+    //     100000,
+    //     "select int64_key, count(*), avg(f64) from t group by int64_key",
+    // )
+    // .await;
+
+    // run_benchmark(
+    //     "100 Groups; 1B rows, utf8_keys(10% nulls), f64 values(1% nulls)",
+    //     100000,
+    //     "select utf8_key, count(*), avg(f64) from t group by utf8_key",
+    // )
+    // .await;
+
     run_benchmark(
         "100 Groups; 1B rows, dictionary(utf8, int32) keys(10% nulls), f64 values(1% nulls)",
         100000,
