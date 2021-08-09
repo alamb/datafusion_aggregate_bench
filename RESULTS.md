@@ -1,7 +1,7 @@
 # Summary
 Here are the results of running 5 iterations of the benchmark Aug 9, 2021:
 
-|test                                                                                    | master  | [arrow-datafusion](https://github.com/apache/arrow-datafusion/pull/808)| `gby_null` / `master` (less than 1 is better) |
+|test                                                                                    | master  | [arrow-datafusion #808](https://github.com/apache/arrow-datafusion/pull/808)| `gby_null` / `master` (less than 1 is better) |
 | ----------- | ----------- |------------ | ------- |
 | `100 Groups; 100M rows, int64_keys(10% nulls), f64 values(1% nulls)`                   | 22.40s  | 16.27s | .73  |
 | `100 Groups; 100M rows, utf8_keys(10% nulls),  f64 values(1% nulls)`                   | 29.46s  | 22.73s | .77  |
