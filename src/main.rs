@@ -18,33 +18,42 @@ use crate::{
 mod query;
 mod repeat;
 
-const BATCH_SIZE: usize  = 10000;
+const NUM_ITERATIONS: i64 = 5;
+const BATCH_SIZE: usize = 10000;
 const NUM_DISTINCT_KEYS: i64 = 100;
 const KEY_NULL_DENSITY: f64 = 0.10; // 10% nulls
 const VALUE_NULL_DENSITY: f64 = 0.01; // 1% nulls
 
-
 #[tokio::main]
 async fn main() {
     println!("Starting tests");
+    //low cardinality
+    benchmark_with_cardinality(NUM_DISTINCT_KEYS).await;
+    //low cardinality
+    benchmark_with_cardinality(NUM_DISTINCT_KEYS * 100).await;
+}
 
+async fn benchmark_with_cardinality(num_distinct_keys: i64) {
     run_benchmark(
-        "100 Groups; 100M rows, int64_keys(10% nulls), f64 values(1% nulls)",
+        format!("{} Groups; 100M rows, int64_keys(10% nulls), f64 values(1% nulls)",num_distinct_keys).as_str(),
         10000,
+        num_distinct_keys,
         "select int64_key, count(*), avg(f64) from t group by int64_key",
     )
     .await;
 
     run_benchmark(
-        "100 Groups; 100M rows, utf8_keys(10% nulls), f64 values(1% nulls)",
+        format!("{} Groups; 100M rows, utf8_keys(10% nulls), f64 values(1% nulls)",num_distinct_keys).as_str(),
         10000,
+        num_distinct_keys,
         "select utf8_key, count(*), avg(f64) from t group by utf8_key",
     )
     .await;
 
     run_benchmark(
-        "100 Groups; 100M rows, dictionary(utf8, int32) keys(10% nulls), f64 values(1% nulls)",
+        format!("{} Groups; 100M rows, dictionary(utf8, int32) keys(10% nulls), f64 values(1% nulls)",num_distinct_keys).as_str(),
         10000,
+        num_distinct_keys,
         "select dict_key, count(*), avg(f64) from t group by dict_key",
     )
     .await;
@@ -60,10 +69,10 @@ fn seedable_rng() -> StdRng {
 /// "utf8_key": utf8 keys
 /// "dict_key": dictionary<int32, utf8> keys
 /// "f64": Float values
-fn make_batch() -> RecordBatch {
+fn make_batch(num_distinct_keys: i64) -> RecordBatch {
     let mut rng = seedable_rng();
 
-    let key_values = (0..NUM_DISTINCT_KEYS)
+    let key_values = (0..num_distinct_keys)
         .map(|i| {
             if rng.gen::<f64>() < KEY_NULL_DENSITY {
                 None
@@ -131,11 +140,11 @@ fn create_data(size: usize, null_density: f64) -> Vec<Option<f64>> {
 }
 
 /// Run the specified query and num batches
-async fn run_benchmark(name: &str, num_batches: usize, query: &str) {
+async fn run_benchmark(name: &str, num_batches: usize, num_distinct_keys: i64, query: &str) {
     println!("-------------------");
     println!("{}", name);
     println!("-------------------");
-    let batch = make_batch();
+    let batch = make_batch(num_distinct_keys);
     let total_rows = num_batches * batch.num_rows();
     println!("Benchmarking {}", query);
     println!(
@@ -149,9 +158,8 @@ async fn run_benchmark(name: &str, num_batches: usize, query: &str) {
     let table = Arc::new(table);
     run_query(table.clone(), &format!("explain {}", query)).await;
 
-    let num_iterations = 5;
     let mut total_duration = std::time::Duration::new(0, 0);
-    for _ in 0..num_iterations {
+    for _ in 0..NUM_ITERATIONS {
         let start = Instant::now();
         run_query_silently(table.clone(), query).await;
         let duration = Instant::now() - start;

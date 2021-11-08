@@ -15,9 +15,9 @@ use datafusion::arrow::record_batch::RecordBatch;
 use datafusion::datasource::TableProvider;
 use datafusion::error::{DataFusionError, Result};
 use datafusion::logical_plan::Expr;
-use datafusion::physical_plan::ExecutionPlan;
+use datafusion::physical_plan::Partitioning;
 use datafusion::physical_plan::{DisplayFormatType, RecordBatchStream, SendableRecordBatchStream};
-use datafusion::{datasource::datasource::Statistics, physical_plan::Partitioning};
+use datafusion::physical_plan::{ExecutionPlan, Statistics};
 use futures_util::stream::StreamExt;
 
 /// In-memory table that send a record batch N times
@@ -33,6 +33,7 @@ impl RepeatedTable {
     }
 }
 
+#[async_trait]
 impl TableProvider for RepeatedTable {
     fn as_any(&self) -> &dyn Any {
         self
@@ -42,12 +43,12 @@ impl TableProvider for RepeatedTable {
         self.batch.schema()
     }
 
-    fn scan(
+    async fn scan(
         &self,
         projection: &Option<Vec<usize>>,
-        _batch_size: usize,
-        _filters: &[Expr],
-        _limit: Option<usize>,
+        batch_size: usize,
+        filters: &[Expr],
+        limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let schema = self.schema();
         let columns: Vec<usize> = match projection {
@@ -89,10 +90,6 @@ impl TableProvider for RepeatedTable {
             batch,
             num: self.num,
         }))
-    }
-
-    fn statistics(&self) -> Statistics {
-        Default::default()
     }
 }
 
@@ -164,6 +161,10 @@ impl ExecutionPlan for RepeatExec {
                 write!(f, "RepeatExec repeat={}", self.num)
             }
         }
+    }
+
+    fn statistics(&self) -> Statistics {
+        todo!()
     }
 }
 
